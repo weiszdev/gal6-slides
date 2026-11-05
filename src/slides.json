@@ -1,0 +1,177 @@
+[
+ {
+  "n": 1,
+  "kind": "title",
+  "label": "Title"
+ },
+ {
+  "n": 2,
+  "kind": "flow",
+  "label": "The flow"
+ },
+ {
+  "n": 3,
+  "kind": "part",
+  "label": "Part 1: The Read"
+ },
+ {
+  "n": 4,
+  "kind": "read",
+  "label": "Read vv. 1\u20132"
+ },
+ {
+  "n": 5,
+  "kind": "read",
+  "label": "Read vv. 3\u20135"
+ },
+ {
+  "n": 6,
+  "kind": "read",
+  "label": "Read vv. 6\u20138"
+ },
+ {
+  "n": 7,
+  "kind": "read",
+  "label": "Read vv. 9\u201310"
+ },
+ {
+  "n": 8,
+  "kind": "read",
+  "label": "Read vv. 11\u201313"
+ },
+ {
+  "n": 9,
+  "kind": "read",
+  "label": "Read vv. 14\u201315"
+ },
+ {
+  "n": 10,
+  "kind": "read",
+  "label": "Read vv. 16\u201318"
+ },
+ {
+  "n": 11,
+  "kind": "part",
+  "label": "Part 2: Verse by Verse"
+ },
+ {
+  "n": 12,
+  "kind": "move",
+  "label": "Movement 01: Carry One Another"
+ },
+ {
+  "n": 13,
+  "kind": "verse",
+  "label": "Verse 1"
+ },
+ {
+  "n": 14,
+  "kind": "verse",
+  "label": "Verse 2"
+ },
+ {
+  "n": 15,
+  "kind": "verse",
+  "label": "Verse 3"
+ },
+ {
+  "n": 16,
+  "kind": "verse",
+  "label": "Verse 4"
+ },
+ {
+  "n": 17,
+  "kind": "verse",
+  "label": "Verse 5"
+ },
+ {
+  "n": 18,
+  "kind": "move",
+  "label": "Movement 02: Sow to the Spirit"
+ },
+ {
+  "n": 19,
+  "kind": "verse",
+  "label": "Verse 6"
+ },
+ {
+  "n": 20,
+  "kind": "verse",
+  "label": "Verse 7"
+ },
+ {
+  "n": 21,
+  "kind": "verse",
+  "label": "Verse 8"
+ },
+ {
+  "n": 22,
+  "kind": "verse",
+  "label": "Verse 9"
+ },
+ {
+  "n": 23,
+  "kind": "verse",
+  "label": "Verse 10"
+ },
+ {
+  "n": 24,
+  "kind": "move",
+  "label": "Movement 03: Glory in the Cross"
+ },
+ {
+  "n": 25,
+  "kind": "verse",
+  "label": "Verse 11"
+ },
+ {
+  "n": 26,
+  "kind": "verse",
+  "label": "Verse 12"
+ },
+ {
+  "n": 27,
+  "kind": "verse",
+  "label": "Verse 13"
+ },
+ {
+  "n": 28,
+  "kind": "verse",
+  "label": "Verse 14"
+ },
+ {
+  "n": 29,
+  "kind": "verse",
+  "label": "Verse 15"
+ },
+ {
+  "n": 30,
+  "kind": "verse",
+  "label": "Verse 16"
+ },
+ {
+  "n": 31,
+  "kind": "verse",
+  "label": "Verse 17"
+ },
+ {
+  "n": 32,
+  "kind": "verse",
+  "label": "Verse 18"
+ },
+ {
+  "n": 33,
+  "kind": "your",
+  "label": "Your Move"
+ },
+ {
+  "n": 34,
+  "kind": "closev",
+  "label": "Close: verse 9"
+ },
+ {
+  "n": 35,
+  "kind": "prayer",
+  "label": "Prayer + site"
+ }
+]

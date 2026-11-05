@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Galatians 6 Presenter</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#F1ECDA;color:#1F3326;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+#app{display:grid;grid-template-rows:auto 1fr auto;height:100%;gap:10px;padding:12px}
+.top{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.num{font-size:34px;font-weight:700;color:#4E6B22}.lab{font-size:20px;color:#31483A;flex:1;min-width:140px}
+.timer{font-variant-numeric:tabular-nums;font-size:34px;font-weight:700}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#555;margin:0 4px 0 12px}.dot.on{background:#3ddc84}
+.small{font-size:14px;color:#566650}
+.main{display:grid;grid-template-columns:2fr 1fr;gap:12px;min-height:0}
+.panel{background:#E3EAD0;border-radius:12px;padding:10px;display:flex;flex-direction:column;min-height:0}
+.panel h3{margin:0 0 8px;font-size:13px;letter-spacing:.15em;color:#4E6B22}
+.row{display:flex;gap:10px;flex:1;min-height:0;align-items:center;justify-content:center}
+.row img{border:1px solid #B9C79A;border-radius:6px;background:#000;max-width:100%;max-height:100%;min-height:0}
+.cur .w{flex:1 1 62%;min-width:0;cursor:pointer}.cur .v{flex:0 1 auto;max-height:100%}
+.nxt .row{flex-direction:column}.nxt img{max-height:48%}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{background:#4E6B22;color:#F6F1E3;border:0;border-radius:8px;padding:10px 16px;font-size:16px;font-weight:700;cursor:pointer}
+button.alt{background:#C9D5B0;color:#1F3326}button:active{transform:translateY(1px)}
+input[type=number]{width:70px;padding:9px;border-radius:8px;border:1px solid #394a95;background:#F1ECDA;color:#1F3326;font-size:16px}
+#black{display:none;background:#b3261e;color:#fff;border-radius:8px;padding:4px 10px;font-weight:700}
+</style></head>
+<body>
+<div id="app">
+<div class="top"><span class="num" id="num">1 / 35</span><span class="lab" id="lab"></span><span id="black">BLACK</span>
+<span class="small">Sync:<span class="dot" id="dw"></span>wide<span class="dot" id="dv"></span>vert</span><span class="timer" id="tm">00:00</span></div>
+<div class="main">
+ <div class="panel cur"><h3>CURRENT (click = next, right-click = back)</h3><div class="row"><img class="w" id="cw" alt=""><img class="v" id="cv" alt=""></div></div>
+ <div class="panel nxt"><h3>NEXT</h3><div class="row"><img id="nw" alt=""><img id="nv" alt=""></div></div>
+</div>
+<div class="bar"><button class="alt" id="bp">&larr; Back</button><button id="bn">Next &rarr;</button><button class="alt" id="bb">Black (B)</button>
+<label class="small">Go to <input type="number" id="gt" min="1" max="35"></label><button class="alt" id="bg">Go</button>
+<span style="flex:1"></span><button class="alt" id="ts">Start timer</button><button class="alt" id="tr">Reset</button>
+<button class="alt" id="ow">Open wide window</button><button class="alt" id="ov">Open vert window</button><button class="alt" id="owk">Wide (green key)</button><button class="alt" id="ovk">Vert (green key)</button>
+<span class="small">Keys: &rarr; / Space / PgDn / click = next &middot; &larr; / PgUp = back &middot; B or . = black &middot; Home/End &middot; F = fullscreen</span></div>
+</div>
+<script>
+
+var N = 35, LABELS = ["Title", "The flow", "Part 1: The Read", "Read vv. 1\u20132", "Read vv. 3\u20135", "Read vv. 6\u20138", "Read vv. 9\u201310", "Read vv. 11\u201313", "Read vv. 14\u201315", "Read vv. 16\u201318", "Part 2: Verse by Verse", "Movement 01: Carry One Another", "Verse 1", "Verse 2", "Verse 3", "Verse 4", "Verse 5", "Movement 02: Sow to the Spirit", "Verse 6", "Verse 7", "Verse 8", "Verse 9", "Verse 10", "Movement 03: Glory in the Cross", "Verse 11", "Verse 12", "Verse 13", "Verse 14", "Verse 15", "Verse 16", "Verse 17", "Verse 18", "Your Move", "Close: verse 9", "Prayer + site"];
+var KEY = 'gal6-slideshow-state', CH = 'gal6-slideshow', HB = 'gal6-slideshow-hb-';
+var me = Math.random().toString(36).slice(2, 10);
+var bc = null; try { bc = new BroadcastChannel(CH); } catch (e) { bc = null; }
+var state = { slide: 1, black: false, ts: 0, from: '' };
+var listeners = [];
+function clamp(n) { n = parseInt(n, 10); if (isNaN(n)) n = 1; return Math.max(1, Math.min(N, n)); }
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function emit() { for (var i = 0; i < listeners.length; i++) try { listeners[i](state); } catch (e) {} }
+function adopt(s) {   // adopt a remote state if it is newer
+  if (!s || typeof s.slide !== 'number') return;
+  if (s.from === me) return;
+  if (s.ts < state.ts) return;
+  if (s.ts === state.ts && s.from === state.from) return;
+  state = { slide: clamp(s.slide), black: !!s.black, ts: s.ts, from: s.from };
+  emit();
+}
+function publish() {
+  state.ts = Date.now(); state.from = me;
+  lsSet(KEY, JSON.stringify(state));
+  if (bc) try { bc.postMessage({ t: 'state', s: state }); } catch (e) {}
+  emit();
+}
+function go(n) { n = clamp(n); if (n === state.slide && !state.black) return; state.slide = n; state.black = false; publish(); }
+function next() { if (state.black) { state.black = false; publish(); return; } go(state.slide + 1); }
+function prev() { if (state.black) { state.black = false; publish(); return; } go(state.slide - 1); }
+function toggleBlack() { state.black = !state.black; publish(); }
+function onKey(e, extra) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  var k = e.key, t = e.target && e.target.tagName;
+  if (t === 'INPUT' || t === 'TEXTAREA') return;
+  var h = true;
+  if (k === 'ArrowRight' || k === 'ArrowDown' || k === ' ' || k === 'PageDown' || k === 'Enter' || k === 'n' || k === 'N') next();
+  else if (k === 'ArrowLeft' || k === 'ArrowUp' || k === 'PageUp' || k === 'Backspace' || k === 'p' || k === 'P') prev();
+  else if (k === 'Home') go(1);
+  else if (k === 'End') go(N);
+  else if (k === 'b' || k === 'B' || k === '.') toggleBlack();
+  else if (k === 'f' || k === 'F') { var d = document.documentElement; if (document.fullscreenElement) document.exitFullscreen(); else if (d.requestFullscreen) d.requestFullscreen(); }
+  else h = false;
+  if (h) e.preventDefault();
+}
+// init: stored state -> ?slide=N override
+(function () {
+  var raw = lsGet(KEY);
+  if (raw) { try { var s = JSON.parse(raw); if (s && typeof s.slide === 'number') state = { slide: clamp(s.slide), black: !!s.black, ts: s.ts || 0, from: s.from || '' }; } catch (e) {} }
+  var m = /[?&]slide=(\d+)/.exec(location.search);
+  if (m) { state.slide = clamp(m[1]); state.black = /[?&]black=1/.test(location.search); state.ts = Date.now(); state.from = me; lsSet(KEY, JSON.stringify(state)); setTimeout(function () { if (bc) try { bc.postMessage({ t: 'state', s: state }); } catch (e) {} }, 0); }
+})();
+if (bc) bc.onmessage = function (ev) {
+  var d = ev.data || {};
+  if (d.t === 'state') adopt(d.s);
+  else if (d.t === 'hello' && state.ts) { try { bc.postMessage({ t: 'state', s: state }); } catch (e) {} }
+  else if (d.t === 'hb') seen[d.role + ':' + d.id] = Date.now();
+};
+window.addEventListener('storage', function (ev) {
+  if (ev.key === KEY && ev.newValue) { try { adopt(JSON.parse(ev.newValue)); } catch (e) {} }
+});
+// polling safety net: some browsers do not fire 'storage' events between file:// pages
+setInterval(function () { var raw = lsGet(KEY); if (raw) { try { adopt(JSON.parse(raw)); } catch (e) {} } }, 250);
+var seen = {};
+function heartbeat(role) {
+  function beat() {
+    var now = Date.now();
+    lsSet(HB + me, JSON.stringify({ role: role, ts: now }));
+    if (bc) try { bc.postMessage({ t: 'hb', role: role, id: me }); } catch (e) {}
+  }
+  beat(); setInterval(beat, 2000);
+  window.addEventListener('pagehide', function () { try { localStorage.removeItem(HB + me); } catch (e) {} });
+}
+function liveRoles() {   // roles seen in the last 6 s (BroadcastChannel and localStorage heartbeats)
+  var now = Date.now(), r = {};
+  for (var k in seen) { if (now - seen[k] < 6000) r[k.split(':')[0]] = (r[k.split(':')[0]] || 0) + 1; }
+  try { for (var i = 0; i < localStorage.length; i++) { var kk = localStorage.key(i); if (kk && kk.indexOf(HB) === 0) { var v = JSON.parse(localStorage.getItem(kk)); if (now - v.ts < 6000) r[v.role] = Math.max(r[v.role] || 0, 1); else localStorage.removeItem(kk); } } } catch (e) {}
+  return r;
+}
+if (bc) try { bc.postMessage({ t: 'hello' }); } catch (e) {}
+
+
+function $(i) { return document.getElementById(i); }
+function render() {
+  var n = state.slide, nx = Math.min(N, n + 1);
+  $('num').textContent = n + ' / ' + N; $('lab').textContent = LABELS[n - 1] || '';
+  $('black').style.display = state.black ? 'inline-block' : 'none';
+  $('cw').src = 'wide/' + pad(n) + '.png'; $('cv').src = 'vert/' + pad(n) + '.png';
+  $('nw').src = 'wide/' + pad(nx) + '.png'; $('nv').src = 'vert/' + pad(nx) + '.png';
+  $('nw').style.visibility = $('nv').style.visibility = (n >= N) ? 'hidden' : 'visible';
+  document.title = 'Presenter ' + n + ' / ' + N;
+}
+listeners.push(render); render();
+// timer: starts on the first advance; start/pause + reset buttons
+var tStart = 0, tAcc = 0, tRun = false;
+function tick() { var ms = tAcc + (tRun ? Date.now() - tStart : 0), s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+  $('tm').textContent = (h ? h + ':' + pad(m) : pad(m)) + ':' + pad(ss); $('ts').textContent = tRun ? 'Pause timer' : 'Start timer'; }
+function tToggle() { if (tRun) { tAcc += Date.now() - tStart; tRun = false; } else { tStart = Date.now(); tRun = true; } tick(); }
+setInterval(tick, 500); tick();
+function adv(f) { if (!tRun && tAcc === 0) tToggle(); f(); }
+document.addEventListener('keydown', function (e) {
+  var k = e.key; if (!e.ctrlKey && !e.metaKey && !e.altKey && (k === 'ArrowRight' || k === 'ArrowDown' || k === ' ' || k === 'PageDown' || k === 'Enter' || k === 'n' || k === 'N') && !tRun && tAcc === 0 && !(e.target && e.target.tagName === 'INPUT')) tToggle();
+  onKey(e);
+});
+$('cw').addEventListener('click', function () { adv(next); });
+$('cw').addEventListener('contextmenu', function (e) { e.preventDefault(); prev(); });
+$('nw').addEventListener('click', function () { adv(next); }); $('nv').addEventListener('click', function () { adv(next); });
+$('bn').onclick = function () { adv(next); }; $('bp').onclick = prev; $('bb').onclick = toggleBlack;
+$('bg').onclick = function () { var v = $('gt').value; if (v) go(v); };
+$('gt').addEventListener('keydown', function (e) { if (e.key === 'Enter') { var v = $('gt').value; if (v) go(v); e.stopPropagation(); } });
+$('ts').onclick = tToggle; $('tr').onclick = function () { tAcc = 0; tRun = false; tick(); };
+function openW(url, name, w, h) { window.open(url, name, 'popup,width=' + w + ',height=' + h); }
+$('ow').onclick = function () { openW('wide.html', 'gal6_wide', 1280, 720); };
+$('ov').onclick = function () { openW('vert.html', 'gal6_vert', 540, 960); };
+$('owk').onclick = function () { openW('wide.html?key=1', 'gal6_wide_key', 1280, 720); };
+$('ovk').onclick = function () { openW('vert.html?key=1', 'gal6_vert_key', 540, 960); };
+heartbeat('presenter');
+setInterval(function () { var r = liveRoles(); $('dw').className = 'dot' + (r.wide ? ' on' : ''); $('dv').className = 'dot' + (r.vert ? ' on' : ''); }, 1000);
+
+</script>
+</body></html>

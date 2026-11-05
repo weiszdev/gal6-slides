@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Galatians 6 live slides</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#F6F1E3;color:#1F3326;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 60px}h1{font-family:Georgia,serif;font-style:italic;font-size:44px;margin:0 0 4px}
+.gold{color:#4E6B22}.sub{color:#566650;margin:0 0 22px}
+.btns{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}
+a.b,button{background:#4E6B22;color:#F6F1E3;border:0;border-radius:10px;padding:14px 22px;font-size:18px;font-weight:700;cursor:pointer;text-decoration:none}
+a.alt,button.alt{background:#C9D5B0;color:#1F3326}
+.card{background:#E3EAD0;border-radius:14px;padding:16px 20px;margin:16px 0}.card h2{margin:0 0 6px;font-size:15px;letter-spacing:.14em;color:#4E6B22}
+code{background:#F6F1E3;padding:2px 6px;border-radius:5px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.t{background:#F6F1E3;border-radius:8px;padding:6px;cursor:pointer;border:2px solid transparent;font-size:12px;color:#566650}.t.cur{border-color:#4E6B22}
+.t img{width:100%;display:block;border-radius:4px}
+</style></head>
+<body>
+<div class="wrap">
+<h1>Galatians 6 <span class="gold">live slides</span></h1>
+<p class="sub">35 slides, wide 1920&times;1080 and vertical 1080&times;1920, always on the same slide number. KJV text.</p>
+<div class="btns"><button id="op">Open presenter</button><button class="alt" id="ow">Open wide window</button><button class="alt" id="ov">Open vertical window</button><button class="alt" id="owk">Wide, green key (OBS)</button><button class="alt" id="ovk">Vertical, green key (OBS)</button></div>
+<div class="card"><h2>HOW IT WORKS</h2>
+<p>Open the presenter and the two view windows <b>in the same browser</b> (same profile). Advance in the presenter (arrow keys, Space, a clicker, or click the slide). The wide and vertical windows follow instantly.</p>
+<p>Share the wide window to StreamYard as a screen share in landscape, and the vertical window as a second screen share in portrait. In OBS, add <code>wide.html</code> as a 1920&times;1080 browser source and <code>vert.html</code> as a 1080&times;1920 browser source. See README.md.</p>
+<p>Start on a given slide: <code>presenter.html?slide=7</code>. Black screen: press <b>B</b>. Green-screen camera slot for OBS keying: <code>wide.html?key=1</code>, <code>vert.html?key=1</code>.</p></div>
+<div class="card"><h2>JUMP TO A SLIDE</h2><div class="grid" id="g"></div></div>
+</div>
+<script>
+
+var N = 35, LABELS = ["Title", "The flow", "Part 1: The Read", "Read vv. 1\u20132", "Read vv. 3\u20135", "Read vv. 6\u20138", "Read vv. 9\u201310", "Read vv. 11\u201313", "Read vv. 14\u201315", "Read vv. 16\u201318", "Part 2: Verse by Verse", "Movement 01: Carry One Another", "Verse 1", "Verse 2", "Verse 3", "Verse 4", "Verse 5", "Movement 02: Sow to the Spirit", "Verse 6", "Verse 7", "Verse 8", "Verse 9", "Verse 10", "Movement 03: Glory in the Cross", "Verse 11", "Verse 12", "Verse 13", "Verse 14", "Verse 15", "Verse 16", "Verse 17", "Verse 18", "Your Move", "Close: verse 9", "Prayer + site"];
+var KEY = 'gal6-slideshow-state', CH = 'gal6-slideshow', HB = 'gal6-slideshow-hb-';
+var me = Math.random().toString(36).slice(2, 10);
+var bc = null; try { bc = new BroadcastChannel(CH); } catch (e) { bc = null; }
+var state = { slide: 1, black: false, ts: 0, from: '' };
+var listeners = [];
+function clamp(n) { n = parseInt(n, 10); if (isNaN(n)) n = 1; return Math.max(1, Math.min(N, n)); }
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function emit() { for (var i = 0; i < listeners.length; i++) try { listeners[i](state); } catch (e) {} }
+function adopt(s) {   // adopt a remote state if it is newer
+  if (!s || typeof s.slide !== 'number') return;
+  if (s.from === me) return;
+  if (s.ts < state.ts) return;
+  if (s.ts === state.ts && s.from === state.from) return;
+  state = { slide: clamp(s.slide), black: !!s.black, ts: s.ts, from: s.from };
+  emit();
+}
+function publish() {
+  state.ts = Date.now(); state.from = me;
+  lsSet(KEY, JSON.stringify(state));
+  if (bc) try { bc.postMessage({ t: 'state', s: state }); } catch (e) {}
+  emit();
+}
+function go(n) { n = clamp(n); if (n === state.slide && !state.black) return; state.slide = n; state.black = false; publish(); }
+function next() { if (state.black) { state.black = false; publish(); return; } go(state.slide + 1); }
+function prev() { if (state.black) { state.black = false; publish(); return; } go(state.slide - 1); }
+function toggleBlack() { state.black = !state.black; publish(); }
+function onKey(e, extra) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  var k = e.key, t = e.target && e.target.tagName;
+  if (t === 'INPUT' || t === 'TEXTAREA') return;
+  var h = true;
+  if (k === 'ArrowRight' || k === 'ArrowDown' || k === ' ' || k === 'PageDown' || k === 'Enter' || k === 'n' || k === 'N') next();
+  else if (k === 'ArrowLeft' || k === 'ArrowUp' || k === 'PageUp' || k === 'Backspace' || k === 'p' || k === 'P') prev();
+  else if (k === 'Home') go(1);
+  else if (k === 'End') go(N);
+  else if (k === 'b' || k === 'B' || k === '.') toggleBlack();
+  else if (k === 'f' || k === 'F') { var d = document.documentElement; if (document.fullscreenElement) document.exitFullscreen(); else if (d.requestFullscreen) d.requestFullscreen(); }
+  else h = false;
+  if (h) e.preventDefault();
+}
+// init: stored state -> ?slide=N override
+(function () {
+  var raw = lsGet(KEY);
+  if (raw) { try { var s = JSON.parse(raw); if (s && typeof s.slide === 'number') state = { slide: clamp(s.slide), black: !!s.black, ts: s.ts || 0, from: s.from || '' }; } catch (e) {} }
+  var m = /[?&]slide=(\d+)/.exec(location.search);
+  if (m) { state.slide = clamp(m[1]); state.black = /[?&]black=1/.test(location.search); state.ts = Date.now(); state.from = me; lsSet(KEY, JSON.stringify(state)); setTimeout(function () { if (bc) try { bc.postMessage({ t: 'state', s: state }); } catch (e) {} }, 0); }
+})();
+if (bc) bc.onmessage = function (ev) {
+  var d = ev.data || {};
+  if (d.t === 'state') adopt(d.s);
+  else if (d.t === 'hello' && state.ts) { try { bc.postMessage({ t: 'state', s: state }); } catch (e) {} }
+  else if (d.t === 'hb') seen[d.role + ':' + d.id] = Date.now();
+};
+window.addEventListener('storage', function (ev) {
+  if (ev.key === KEY && ev.newValue) { try { adopt(JSON.parse(ev.newValue)); } catch (e) {} }
+});
+// polling safety net: some browsers do not fire 'storage' events between file:// pages
+setInterval(function () { var raw = lsGet(KEY); if (raw) { try { adopt(JSON.parse(raw)); } catch (e) {} } }, 250);
+var seen = {};
+function heartbeat(role) {
+  function beat() {
+    var now = Date.now();
+    lsSet(HB + me, JSON.stringify({ role: role, ts: now }));
+    if (bc) try { bc.postMessage({ t: 'hb', role: role, id: me }); } catch (e) {}
+  }
+  beat(); setInterval(beat, 2000);
+  window.addEventListener('pagehide', function () { try { localStorage.removeItem(HB + me); } catch (e) {} });
+}
+function liveRoles() {   // roles seen in the last 6 s (BroadcastChannel and localStorage heartbeats)
+  var now = Date.now(), r = {};
+  for (var k in seen) { if (now - seen[k] < 6000) r[k.split(':')[0]] = (r[k.split(':')[0]] || 0) + 1; }
+  try { for (var i = 0; i < localStorage.length; i++) { var kk = localStorage.key(i); if (kk && kk.indexOf(HB) === 0) { var v = JSON.parse(localStorage.getItem(kk)); if (now - v.ts < 6000) r[v.role] = Math.max(r[v.role] || 0, 1); else localStorage.removeItem(kk); } } } catch (e) {}
+  return r;
+}
+if (bc) try { bc.postMessage({ t: 'hello' }); } catch (e) {}
+
+
+var g = document.getElementById('g');
+for (var i = 1; i <= N; i++) { (function (n) { var d = document.createElement('div'); d.className = 't'; d.id = 't' + n;
+  d.innerHTML = '<img loading="lazy" src="wide/' + pad(n) + '.png" alt=""><div>' + n + '. ' + LABELS[n - 1] + '</div>'; d.onclick = function () { go(n); }; g.appendChild(d); })(i); }
+function render() { var els = g.children; for (var i = 0; i < els.length; i++) els[i].className = 't' + (i + 1 === state.slide ? ' cur' : ''); }
+listeners.push(render); render();
+function openW(url, name, w, h) { window.open(url, name, 'popup,width=' + w + ',height=' + h); }
+document.getElementById('op').onclick = function () { openW('presenter.html', 'gal6_presenter', 1280, 800); };
+document.getElementById('ow').onclick = function () { openW('wide.html', 'gal6_wide', 1280, 720); };
+document.getElementById('ov').onclick = function () { openW('vert.html', 'gal6_vert', 540, 960); };
+document.getElementById('owk').onclick = function () { openW('wide.html?key=1', 'gal6_wide_key', 1280, 720); };
+document.getElementById('ovk').onclick = function () { openW('vert.html?key=1', 'gal6_vert_key', 540, 960); };
+document.addEventListener('keydown', onKey);
+
+</script>
+</body></html>

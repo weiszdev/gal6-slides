@@ -1,0 +1,290 @@
+#!/usr/bin/env python3
+"""Render Galatians 6 slides with a reserved camera slot.
+Sets: ../wide, ../vert (placeholder) and ../wide_key, ../vert_key (flat chroma green #00B140). Also writes slides.json."""
+import json, os, sys
+from PIL import Image, ImageDraw, ImageFont
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import content as C
+
+OUT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# Natural palette (light): linen bg #F6F1E3, sage-tint cards #E3EAD0, forest text #1F3326,
+# olive accent #4E6B22, clay secondary #9A4F2B, muted green-gray #566650, description text #31483A.
+NAVY, CARD, GOLD = (246, 241, 227), (227, 234, 208), (78, 107, 34)   # NAVY = background, GOLD = accent role (olive)
+WHITE, MUTED = (31, 51, 38), (86, 102, 80)                            # WHITE = main text role (forest)
+CLAY, CREAM, EDGE, DESC = (154, 79, 43), (246, 241, 227), (200, 212, 172), (49, 72, 58)
+GI = "/usr/share/fonts/truetype/sand-box/google/Gelasio/Gelasio-Italic-VariableFont_wght.ttf"
+INTER = "/usr/share/fonts/truetype/sand-box/google/Inter/Inter-VariableFont_opsz,wght.ttf"
+_c = {}
+def serif(sz):
+    k = ("s", sz)
+    if k not in _c:
+        f = ImageFont.truetype(GI, sz); f.set_variation_by_name("Bold Italic"); _c[k] = f
+    return _c[k]
+def sans(sz, w="SemiBold"):
+    k = ("i", sz, w)
+    if k not in _c:
+        f = ImageFont.truetype(INTER, sz); f.set_variation_by_name(w); _c[k] = f
+    return _c[k]
+
+def q(t): return "\u201c" + t + "\u201d"
+def curly(t): return t.replace("'", "\u2019")
+
+def wrap(text, font, maxw):
+    lines, cur = [], ""
+    for w in text.split():
+        t = (cur + " " + w) if cur else w
+        if font.getlength(t) > maxw and cur: lines.append(cur); cur = w
+        else: cur = t
+    if cur: lines.append(cur)
+    return lines
+
+def spaced(d, xy, text, font, fill, sp):
+    x, y = xy
+    for ch in text:
+        d.text((x, y), ch, font=font, fill=fill); x += font.getlength(ch) + sp
+    return x
+def spaced_w(text, font, sp): return sum(font.getlength(c) + sp for c in text) - sp
+
+def fit(text, maker, maxw, maxh, hi, lo, lh=1.22, step=2):
+    for s in range(hi, lo - 1, -step):
+        f = maker(s); ls = wrap(text, f, maxw)
+        if len(ls) * s * lh <= maxh: return s, f, ls
+    f = maker(lo); return lo, f, wrap(text, f, maxw)
+
+CHROMA = (0, 177, 64)          # #00B140
+PLACEHOLDER = (238, 232, 212)  # linen, slightly deeper than the page
+ICON = (196, 206, 168)         # faint sage camera icon
+# Camera slot (outer rectangle, border included): x0, y0, x1, y1
+SLOT = {"wide": (1170, 180, 1810, 900), "vert": (36, 1164, 1044, 1884)}
+BORDER = 4
+
+class Slide:
+    def __init__(self, fmt, key=False):
+        self.fmt = fmt; self.vert = fmt == "vert"; self.key = key
+        self.W, self.H = (1080, 1920) if self.vert else (1920, 1080)
+        self.M = 72 if self.vert else 110
+        self.R = self.W - self.M if self.vert else 1130      # right edge of the text area
+        self.Bt = 1124 if self.vert else 1030                # bottom edge of the text area
+        self.Hc = self.Bt if self.vert else self.H           # vertical centre reference
+        self.CW = self.R - self.M                            # text area width
+        self.im = Image.new("RGB", (self.W, self.H), NAVY); self.d = ImageDraw.Draw(self.im)
+        self.k = 1.15 if self.vert else 1.0   # sans scale for the tall layout
+        self.camera()
+    def camera(self):
+        x0, y0, x1, y1 = SLOT[self.fmt]; d = self.d
+        d.rounded_rectangle((x0, y0, x1 - 1, y1 - 1), radius=30, fill=CHROMA if self.key else PLACEHOLDER, outline=GOLD, width=BORDER)
+        if not self.key:   # faint camera icon
+            cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+            w, h = 190, 120
+            d.rounded_rectangle((cx - w // 2, cy - h // 2 + 10, cx + w // 2, cy + h // 2 + 10), radius=18, outline=ICON, width=9)
+            d.rounded_rectangle((cx - 34, cy - h // 2 - 12, cx + 34, cy - h // 2 + 12), radius=8, outline=ICON, width=9)
+            d.ellipse((cx - 36, cy - 26, cx + 36, cy + 46), outline=ICON, width=9)
+            d.ellipse((cx + w // 2 - 34, cy - h // 2 + 28, cx + w // 2 - 22, cy - h // 2 + 40), fill=ICON)
+    def header(self, n, total, left="GALATIANS 6", right=True):
+        s = int(30 * self.k)
+        spaced(self.d, (self.M, int(54 * (1.2 if self.vert else 1))), left, sans(s, "Bold"), GOLD, 5)
+        if right:
+            t = f"{n} / {total}"; f = sans(int(28 * self.k), "Medium")
+            self.d.text((self.W - self.M - f.getlength(t), int(56 * (1.2 if self.vert else 1))), t, font=f, fill=MUTED)
+    def chip(self, text, y=None):
+        y = y or (150 if self.vert else 116)
+        f = sans(int(34 * self.k), "Bold"); sp = 4
+        w = spaced_w(text, f, sp); px, h = 34, int(62 * self.k)
+        self.d.rounded_rectangle((self.M, y, self.M + w + 2 * px, y + h), radius=14, fill=GOLD)
+        spaced(self.d, (self.M + px, y + (h - int(34 * self.k) * 1.2) / 2 - 1), text, f, CREAM, sp)
+        return y + h
+    def bar(self, y0, y1):
+        self.d.rectangle((self.M, y0, self.M + 12, y1), fill=GOLD)
+    def card(self, y0, y1, label, text, maker=None, hi=None, lo=None, tfill=WHITE):
+        d = self.d; M = self.M
+        d.rounded_rectangle((M, y0, self.R, y1), radius=26, fill=CARD, outline=EDGE, width=2)
+        pad = 44 if self.vert else 40
+        spaced(d, (M + pad, y0 + int(pad * 0.7)), label, sans(int(24 * self.k), "Bold"), GOLD, 5)
+        ty0 = y0 + int(pad * 0.7) + int(24 * self.k) * 1.9
+        maker = maker or (lambda s: sans(s, "SemiBold"))
+        s, f, ls = fit(text, maker, self.CW - 2 * pad, y1 - ty0 - pad * 0.6, hi, lo, lh=1.32)
+        y = ty0
+        for l in ls: d.text((M + pad, y), l, font=f, fill=tfill); y += s * 1.32
+    def text_block(self, lines, f, x, y, fill, lh, size):
+        for l in lines: self.d.text((x, y), l, font=f, fill=fill); y += size * lh
+        return y
+    def save(self, n):
+        p = os.path.join(OUT, self.fmt + ("_key" if self.key else "")); os.makedirs(p, exist_ok=True)
+        self.im.save(os.path.join(p, f"{n:02d}.png"), optimize=True)
+
+def build_slides():
+    S = []  # list of dict(kind, label, ...)
+    S.append(dict(kind="title", label="Title"))
+    S.append(dict(kind="flow", label="The flow"))
+    S.append(dict(kind="part", label="Part 1: The Read", part="PART 1", title="The Read", sub="The whole chapter, two or three verses at a time."))
+    for i, (a, b) in enumerate(C.READ):
+        S.append(dict(kind="read", label=f"Read vv. {a}\u2013{b}" if a != b else f"Read v. {a}", a=a, b=b, listen=C.LISTEN_FOR[i]))
+    S.append(dict(kind="part", label="Part 2: Verse by Verse", part="PART 2", title="Verse by Verse", sub="Slow down. Let each verse ask you something."))
+    for m in C.MOVEMENTS:
+        S.append(dict(kind="move", label=f"Movement {m[0]}: {m[4]}", m=m))
+        for v in range(m[5], m[6] + 1):
+            S.append(dict(kind="verse", label=f"Verse {v}", v=v))
+    S.append(dict(kind="your", label="Your Move"))
+    S.append(dict(kind="closev", label=f"Close: verse {C.CLOSE_VERSE}", v=C.CLOSE_VERSE))
+    S.append(dict(kind="prayer", label="Prayer + site"))
+    return S
+
+def draw(s, n, N, sl):
+    W, H, M, R, CW, Bt, Hc, d, V = s.W, s.H, s.M, s.R, s.CW, s.Bt, s.Hc, s.d, s.vert
+    kind = sl["kind"]
+    TW = CW - 60   # text width right of the gold bar
+    if kind == "title":
+        s.header(n, N, right=False)
+        lines = C.TITLE_LINES_VERT if V else C.TITLE_LINES_WIDE
+        size = 150 if V else 130
+        while max(serif(size).getlength(l) for l in lines) > CW - 70: size -= 4
+        f = serif(size)
+        y0 = 215 if V else 200
+        hh = len(lines) * size * 1.12
+        s.bar(y0 + 10, y0 + hh)
+        s.text_block(lines, f, M + 60, y0, WHITE, 1.12, size)
+        ys = y0 + hh + 26
+        d.text((M + 60, ys), "Galatians 6:1\u201318  \u00b7  KJV", font=sans(int(38 * s.k), "SemiBold"), fill=CLAY)
+        c0 = 865 if V else 640
+        c1 = Bt if V else c0 + 340
+        d.rounded_rectangle((M, c0, R, c1), radius=26, fill=CARD, outline=EDGE, width=2)
+        pad = 44 if V else 40
+        spaced(d, (M + pad, c0 + 30), "TODAY", sans(int(24 * s.k), "Bold"), GOLD, 5)
+        fs = 46 if V else 54; y = c0 + 30 + 24 * s.k * 1.9
+        for t in C.TRIAD: d.text((M + pad, y), t, font=sans(fs, "SemiBold"), fill=WHITE); y += fs * 1.36
+    elif kind == "flow":
+        s.header(n, N); s.chip("THE FLOW")
+        top = 290 if V else 250; avail = Bt - top
+        rh = avail / 3
+        for i, m in enumerate(C.MOVEMENTS):
+            y = top + i * rh
+            d.rounded_rectangle((M, y, R, y + rh - 22), radius=26, fill=CARD, outline=EDGE, width=2)
+            d.rectangle((M, y + 26, M + 12, y + rh - 48), fill=GOLD)
+            pad = 50
+            tsz = int(46 * s.k) if V else 46
+            d.text((M + pad, y + 30), m[0], font=sans(int(38 * s.k) if V else 38, "Bold"), fill=GOLD)
+            tf = sans(tsz, "Bold"); tx = M + pad + 84
+            d.text((tx, y + 28), m[1], font=tf, fill=WHITE)
+            d.text((tx + tf.getlength(m[1]) + 24, y + 34), m[2], font=sans(int(30 * s.k) if V else 32, "SemiBold"), fill=CLAY)
+            dy = y + 28 + tsz * 1.3 + 8
+            sz, f, ls = fit(m[3], lambda z: sans(z, "Medium"), CW - 2 * pad, (y + rh - 22) - dy - 22, 44, 26, lh=1.3)
+            for l in ls: d.text((M + pad, dy), l, font=f, fill=DESC); dy += sz * 1.3
+    elif kind == "part":
+        s.header(n, N); s.chip(sl["part"])
+        size = 170
+        while serif(size).getlength(sl["title"]) > CW - 70: size -= 4
+        f = serif(size)
+        y0 = Hc // 2 - 200
+        s.bar(y0 + 10, y0 + size * 1.15)
+        d.text((M + 60, y0), sl["title"], font=f, fill=WHITE)
+        sz, ff, ls = fit(sl["sub"], lambda z: sans(z, "Medium"), TW, 300, 46, 32)
+        y = y0 + size * 1.15 + 50
+        for l in ls: d.text((M + 60, y), l, font=ff, fill=CLAY); y += sz * 1.3
+    elif kind == "move":
+        m = sl["m"]
+        s.header(n, N); s.chip(f"{m[0]}  \u00b7  {m[2].upper()}")
+        size = 150 if V else 140
+        title = m[4]
+        lines = wrap(title, serif(size), TW)
+        while any(serif(size).getlength(l) > TW for l in lines): size -= 6; lines = wrap(title, serif(size), TW)
+        y0 = Hc // 2 - 260
+        hh = len(lines) * size * 1.15
+        s.bar(y0 + 10, y0 + hh)
+        s.text_block(lines, serif(size), M + 60, y0, WHITE, 1.15, size)
+        sz, ff, ls = fit(m[3], lambda z: sans(z, "Medium"), TW, 360, 46, 32)
+        y = y0 + hh + 50
+        for l in ls: d.text((M + 60, y), l, font=ff, fill=CLAY); y += sz * 1.3
+    elif kind == "read":
+        a, b = sl["a"], sl["b"]
+        s.header(n, N); s.chip(f"READ  \u00b7  VV. {a}\u2013{b}" if a != b else f"READ  \u00b7  V. {a}")
+        cy0 = 290 if V else 250; cy1 = 850 if V else 770
+        s.bar(cy0, cy1)
+        width = TW
+        for size in range(70 if V else 60, 25, -2):
+            f = serif(size); nf = sans(int(size * 0.62), "Bold")
+            paras = []
+            for v in range(a, b + 1):
+                nw = nf.getlength(str(v)) + 18
+                lines = wrap(curly(C.KJV[v]), f, width - nw)
+                paras.append((v, nw, lines))
+            hh = sum(len(p[2]) for p in paras) * size * 1.2 + (len(paras) - 1) * size * 0.35
+            if hh <= cy1 - cy0 - 20: break
+        y = cy0 + ((cy1 - cy0) - hh) / 2
+        for v, nw, lines in paras:
+            d.text((M + 60, y + size * 0.16), str(v), font=nf, fill=GOLD)
+            for l in lines: d.text((M + 60 + nw, y), l, font=f, fill=WHITE); y += size * 1.2
+            y += size * 0.35
+        s.card(cy1 + 36, Bt if V else 1030, "LISTEN FOR", sl["listen"], None, 50 if V else 44, 28)
+    elif kind in ("verse", "closev"):
+        v = sl["v"]
+        s.header(n, N); s.chip(f"VERSE {v}" if kind == "verse" else "CLOSE")
+        cy0 = 290 if V else 250
+        cy1 = (800 if V else 760) if kind == "verse" else (1000 if V else 880)
+        s.bar(cy0, cy1)
+        text = q(curly(C.KJV[v]))
+        refh = 64
+        size, f, ls = fit(text, serif, TW, cy1 - cy0 - refh - 24, 112 if V else 96, 44, lh=1.2)
+        hh = len(ls) * size * 1.2 + refh
+        y = cy0 + ((cy1 - cy0) - hh) / 2
+        for l in ls: d.text((M + 60, y), l, font=f, fill=WHITE); y += size * 1.2
+        d.text((M + 60, y + 8), f"Galatians 6:{v}", font=sans(int(34 * s.k), "Bold"), fill=CLAY)
+        if kind == "verse":
+            q_, note = C.VERSES[v]
+            c0 = cy1 + (44 if V else 48)
+            s.card(c0, Bt if V else 1030, "QUESTION", q_, None, 52 if V else 46, 28)
+            if note:
+                nf = sans(int(20 * s.k), "Bold"); tw = spaced_w(note, nf, 3)
+                spaced(d, (R - tw - 4, c0 - (30 if V else 30)), note, nf, MUTED, 3)
+        else:
+            c0 = cy1 + 40
+            c1 = Bt if V else 1030
+            d.rounded_rectangle((M, c0, R, c1), radius=26, fill=CARD, outline=EDGE, width=2)
+            tf = sans(int(44 * s.k), "SemiBold"); t = "Grow deep. Think biblically."
+            d.text((M + (CW - tf.getlength(t)) / 2, (c0 + c1) / 2 - 28 * s.k), t, font=tf, fill=WHITE)
+    elif kind == "your":
+        s.header(n, N); s.chip("YOUR MOVE")
+        y = 290 if V else 250
+        fsz = 40 if V else 42; width = CW - 100
+        for i, t in enumerate(C.YOUR_MOVE, 1):
+            f = sans(fsz, "SemiBold"); ls = wrap(t, f, width)
+            d.text((M, y), str(i), font=serif(fsz + 12), fill=GOLD)
+            for l in ls: d.text((M + 80, y), l, font=f, fill=WHITE); y += fsz * 1.32
+            y += fsz * 0.6
+        c0 = max(y + 24, 780 if V else 650)
+        c1 = Bt if V else 1030
+        d.rounded_rectangle((M, c0, R, c1), radius=26, fill=CARD, outline=EDGE, width=2)
+        pad = 44 if V else 40
+        spaced(d, (M + pad, c0 + 28), "SAY IT OUT LOUD", sans(int(24 * s.k), "Bold"), GOLD, 5)
+        ty = c0 + 28 + 24 * s.k * 1.9
+        sz, f, ls = fit(q(C.SAY_IT), serif, CW - 2 * pad, c1 - ty - pad * 0.5, 64 if V else 56, 30, lh=1.22)
+        for l in ls: d.text((M + pad, ty), l, font=f, fill=WHITE); ty += sz * 1.22
+    elif kind == "prayer":
+        s.header(n, N)
+        cx = (M + R) / 2; yc = Hc // 2
+        t0 = "NEED PRAYER?"
+        f = sans(int(36 * s.k), "Bold"); tw = spaced_w(t0, f, 8)
+        spaced(d, (cx - tw / 2, yc - (300 if V else 330)), t0, f, GOLD, 8)
+        l1, l2 = "Text", "844-320-PRAY"
+        big = 170 if V else 170
+        while serif(big).getlength(l2) > CW - 30: big -= 4
+        ft = serif(big)
+        yt = yc - (240 if V else 250)
+        d.text((cx - ft.getlength(l1) / 2, yt), l1, font=ft, fill=WHITE)
+        d.text((cx - ft.getlength(l2) / 2, yt + big * 1.12), l2, font=ft, fill=CLAY)
+        l3 = "for prayer"; f3 = sans(int(54 * s.k), "SemiBold")
+        y3 = yt + big * 2.35
+        d.text((cx - f3.getlength(l3) / 2, y3), l3, font=f3, fill=WHITE)
+        d.rectangle((cx - 80, y3 + 100 * s.k, cx + 80, y3 + 100 * s.k + 6), fill=GOLD)
+        l4 = "staytheway.com"; f4 = sans(int(60 * s.k), "Bold")
+        d.text((cx - f4.getlength(l4) / 2, y3 + 140 * s.k), l4, font=f4, fill=GOLD)
+
+def main():
+    S = build_slides(); N = len(S)
+    for fmt in ("wide", "vert"):
+        for key in (False, True):
+            for i, sl in enumerate(S, 1):
+                s = Slide(fmt, key); draw(s, i, N, sl); s.save(i)
+    json.dump([dict(n=i, kind=sl["kind"], label=sl["label"]) for i, sl in enumerate(S, 1)], open(os.path.join(OUT, "src", "slides.json"), "w"), indent=1)
+    print("slides:", N)
+if __name__ == "__main__":
+    main()
