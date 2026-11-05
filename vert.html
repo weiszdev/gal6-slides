@@ -99,7 +99,7 @@ function render() {
   document.title = 'Vertical' + (DIR !== FMT ? ' KEY ' : ' ') + n + ' / ' + N;
 }
 listeners.push(render); render();
-document.addEventListener('keydown', onKey);
+if (!window.obsstudio) document.addEventListener('keydown', onKey);
 heartbeat('vert');
 setTimeout(function () { for (var i = 1; i <= N; i++) preload(i); }, 800);
 
