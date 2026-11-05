@@ -64,8 +64,9 @@ function publish() {
   emit();
 }
 function go(n) { n = clamp(n); if (n === state.slide && !state.black) return; state.slide = n; state.black = false; publish(); }
-function next() { if (state.black) { state.black = false; publish(); return; } go(state.slide + 1); }
-function prev() { if (state.black) { state.black = false; publish(); return; } go(state.slide - 1); }
+var __lastNav=0; function __ok(){var t=Date.now(); if(t-__lastNav<350) return false; __lastNav=t; return true;}
+function next() { if (!__ok()) return; if (state.black) { state.black = false; publish(); return; } go(state.slide + 1); }
+function prev() { if (!__ok()) return; if (state.black) { state.black = false; publish(); return; } go(state.slide - 1); }
 function toggleBlack() { state.black = !state.black; publish(); }
 function onKey(e, extra) {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -155,5 +156,6 @@ $('ovk').onclick = function () { openW('vert.html?key=1', 'gal6_vert_key', 540, 
 heartbeat('presenter');
 setInterval(function () { var r = liveRoles(); $('dw').className = 'dot' + (r.wide ? ' on' : ''); $('dv').className = 'dot' + (r.vert ? ' on' : ''); }, 1000);
 
+document.querySelectorAll("button").forEach(function(b){b.addEventListener("mouseup",function(){b.blur();});});
 </script>
 </body></html>
